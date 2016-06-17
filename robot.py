@@ -1,82 +1,141 @@
-# Make a robot called myrobot that starts at
-# coordinates 30, 50 heading north (pi/2).
-# Have your robot turn clockwise by pi/2, move
-# 15 m, and sense. Then have it turn clockwise
-# by pi/2 again, move 10 m, and sense again.
+# -----------------
+# USER INSTRUCTIONS
 #
-# Your program should print out the result of
-# your two sense measurements.
+# Write a function in the class robot called move()
 #
-# Don't modify the code below. Please enter
-# your code at the bottom.
+# that takes self and a motion vector (this
+# motion vector contains a steering* angle and a
+# distance) as input and returns an instance of the class
+# robot with the appropriate x, y, and orientation
+# for the given motion.
+#
+# *steering is defined in the video
+# which accompanies this problem.
+#
+# For now, please do NOT add noise to your move function.
+#
+# Please do not modify anything except where indicated
+# below.
+#
+# There are test cases which you are free to use at the
+# bottom. If you uncomment them for testing, make sure you
+# re-comment them before you submit.
 
 from math import *
 import random
+# --------
+# 
+# the "world" has 4 landmarks.
+# the robot's initial coordinates are somewhere in the square
+# represented by the landmarks.
+#
+# NOTE: Landmark coordinates are given in (y, x) form and NOT
+# in the traditional (x, y) format!
 
+landmarks  = [[0.0, 100.0], [0.0, 0.0], [100.0, 0.0], [100.0, 100.0]] # position of 4 landmarks
+world_size = 100.0 # world is NOT cyclic. Robot is allowed to travel "out of bounds"
+max_steering_angle = pi/4 # You don't need to use this value, but it is good to keep in mind the limitations of a real car.
 
-
-landmarks  = [[20.0, 20.0], [80.0, 80.0], [20.0, 80.0], [80.0, 20.0]]
-world_size = 100.0
-
+# ------------------------------------------------
+# 
+# this is the robot class
+#
 
 class robot:
-    def __init__(self):
-        self.x = random.random() * world_size
-        self.y = random.random() * world_size
-        self.orientation = random.random() * 2.0 * pi
-        self.forward_noise = 0.0;
-        self.turn_noise    = 0.0;
-        self.sense_noise   = 0.0;
+
+    # --------
+
+    # init: 
+    #   creates robot and initializes location/orientation 
+    #
+
+    def __init__(self, length = 10.0):
+        self.x = random.random() * world_size # initial x position
+        self.y = random.random() * world_size # initial y position
+        self.orientation = random.random() * 2.0 * pi # initial orientation
+        self.length = length # length of robot
+        self.bearing_noise  = 0.0 # initialize bearing noise to zero
+        self.steering_noise = 0.0 # initialize steering noise to zero
+        self.distance_noise = 0.0 # initialize distance noise to zero
     
+    def __repr__(self):
+        return '[x=%.6s y=%.6s orient=%.6s]' % (str(self.x), str(self.y), str(self.orientation))
+    # --------
+    # set: 
+    #   sets a robot coordinate
+    #
+
     def set(self, new_x, new_y, new_orientation):
-        if new_x < 0 or new_x >= world_size:
-            raise ValueError, 'X coordinate out of bound'
-        if new_y < 0 or new_y >= world_size:
-            raise ValueError, 'Y coordinate out of bound'
+
         if new_orientation < 0 or new_orientation >= 2 * pi:
             raise ValueError, 'Orientation must be in [0..2pi]'
         self.x = float(new_x)
         self.y = float(new_y)
         self.orientation = float(new_orientation)
-    
-    
-    def set_noise(self, new_f_noise, new_t_noise, new_s_noise):
+
+
+    # --------
+    # set_noise: 
+    #   sets the noise parameters
+    #
+
+    def set_noise(self, new_b_noise, new_s_noise, new_d_noise):
         # makes it possible to change the noise parameters
         # this is often useful in particle filters
-        self.forward_noise = float(new_f_noise);
-        self.turn_noise    = float(new_t_noise);
-        self.sense_noise   = float(new_s_noise);
+        self.bearing_noise  = float(new_b_noise)
+        self.steering_noise = float(new_s_noise)
+        self.distance_noise = float(new_d_noise)
     
+    ############# ONLY ADD/MODIFY CODE BELOW HERE ###################
+
+    # --------
+    # move:
+    #   move along a section of a circular path according to motion
+    #
     
-    def sense(self):
-        Z = []
-        for i in range(len(landmarks)):
-            dist = sqrt((self.x - landmarks[i][0]) ** 2 + (self.y - landmarks[i][1]) ** 2)
-            dist += random.gauss(0.0, self.sense_noise)
-            Z.append(dist)
-        return Z
-    
-    
-    def move(self, turn, forward):
-        if forward < 0:
-            raise ValueError, 'Robot cant move backwards'         
+   def move(self, motion ,tolerance = 0.001):
+        streering = motion[0]
+        distance = motion[1]
+
+        if abs(streering) > max_streering_angle:
+            raise ValueError, 'Excedding max streering angle'         
         
-        # turn, and add randomness to the turning command
-        orientation = self.orientation + float(turn) + random.gauss(0.0, self.turn_noise)
-        orientation %= 2 * pi
-        
-        # move, and add randomness to the motion command
-        dist = float(forward) + random.gauss(0.0, self.forward_noise)
-        x = self.x + (cos(orientation) * dist)
-        y = self.y + (sin(orientation) * dist)
-        x %= world_size    # cyclic truncate
-        y %= world_size
-        
-        # set particle
+        if distance < 0.0 :
+            raise ValueError,'Moving backward is not valid'
+        # Make a new copy 
         res = robot()
-        res.set(x, y, orientation)
-        res.set_noise(self.forward_noise, self.turn_noise, self.sense_noise)
-        return res
+        res.length          = self.length
+        res.bearing_noise   = self.bearing_noise
+        res.streering_noise = self.bearing_noise
+        res.distance_noise  =self.distance_noise
+
+        #apply noise 
+        streering2 = random.gauss(streering, self.streering_noise)
+        distance2  = random.gauss(distance , self.distance_noise)
+
+        #Executing motion 
+        turn = tan(streering2) * distance2 /res.length
+        if abs(turn) < tolerance:
+            #approximate by straight line motion 
+            res.x = self.x +(distance2 * cos(self.orientation))
+            res.y = self.y +(distance2 * sin(self.orientation))
+            res.orientation=(self.orientation + turn) %(2.0 * pi)
+
+        else: 
+             #appromate bicycle model for motion 
+             radius = distance2 / turn
+             cx = self.x - (sin(self.orientation) * radius)
+             cy = self.y + (cos(self.orientation) * radius)
+             res.orientation = (self.orientation + turn)% (2.0 * pi)
+             res.x = cx + (sin(self.orientation) * radius)
+             res.y = cy - (cos(self.orientation) * radius)
+        
+        
+        return res 
+    ############## ONLY ADD/MODIFY CODE ABOVE HERE ####################
+     
+    
+    
     
     def Gaussian(self, mu, sigma, x):
         
@@ -111,51 +170,21 @@ def eval(r, p):
     return sum / float(len(p))
 
 
-def eval(r, p):
-    sum = 0.0;
-    for i in range(len(p)): # calculate mean error
-        dx = (p[i].x - r.x + (world_size/2.0)) % world_size - (world_size/2.0)
-        dy = (p[i].y - r.y + (world_size/2.0)) % world_size - (world_size/2.0)
-        err = sqrt(dx * dx + dy * dy)
-        sum += err
-    return sum / float(len(p))
+
 ####   DON'T MODIFY ANYTHING ABOVE HERE! ENTER/MODIFY CODE BELOW ####
-myrobot = robot()
-myrobot = myrobot.move(0.1, 5.0)
-Z = myrobot.sense()
-N = 1000
-T = 10 #Leave this as 10 for grading purposes.
+length = 20.
+bearing_noise  = 0.0
+steering_noise = 0.0
+distance_noise = 0.0
+myrobot = robot(length)
+myrobot.set(0.0, 0.0, 0.0)
+myrobot.set_noise(bearing_noise, steering_noise, distance_noise)
 
-p = []
-for i in range(N):
-    r = robot()
-    r.set_noise(0.05, 0.05, 5.0)
-    p.append(r)
+motions = [[0.0, 10.0], [pi / 6.0, 10], [0.0, 20.0]]
 
+T = len(motions)
+
+print 'Robot:    ', myrobot
 for t in range(T):
-    myrobot = myrobot.move(0.1, 5.0)
-    Z = myrobot.sense()
-
-    p2 = []
-    for i in range(N):
-        p2.append(p[i].move(0.1, 5.0))
-    p = p2
-
-    w = []
-    for i in range(N):
-        w.append(p[i].measurement_prob(Z))
-
-    p3 = []
-    index = int(random.random() * N)
-    beta = 0.0
-    mw = max(w)
-    for i in range(N):
-        beta += random.random() * 2.0 * mw
-        while beta > w[index]:
-            beta -= w[index]
-            index = (index + 1) % N
-        p3.append(p[index])
-    p = p3
-    #enter code here, make sure that you output 10 print statementsself.
-    print eval(myrobot,p)
-
+    myrobot = myrobot.move(motions[t])
+    print 'Robot:    ', myrobot
